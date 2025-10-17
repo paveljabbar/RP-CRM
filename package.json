@@ -1,0 +1,15 @@
+{
+  "name": "arilla-like",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev:api": "cd apps/api && pnpm dlx tsx src/index.ts",
+    "dev:frontend": "cd apps/frontend && pnpm dev",
+    "dev:db": "cd apps/api && npx prisma studio",
+    "dev:all": "concurrently \"pnpm dev:api\" \"pnpm dev:frontend\" \"pnpm dev:db\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
+
