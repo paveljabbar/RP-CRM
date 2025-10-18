@@ -25,17 +25,32 @@ const onSubmit = async (data: LoginForm) => {
   setSuccess(null);
 
   try {
-  const res = await axios.post("http://localhost:4000/auth/login", data);
-  console.log("Antwort vom Backend:", res.data);
-  const token = res.data.token;
-  localStorage.setItem("token", token);
-  setSuccess("Login erfolgreich!");
-  window.location.href = "/dashboard";
-} catch (err: any) {
-  console.error("Fehler beim Login:", err);
-  setError(err.response?.data?.message || "Login fehlgeschlagen");
-}
+    const res = await axios.post("http://localhost:4000/auth/login", data);
+    console.log("Antwort vom Backend:", res.data);
+
+    const token = res.data.token;
+    localStorage.setItem("token", token);
+
+// Token zusätzlich als Cookie setzen (für Middleware)
+document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax;`;
+
+
+    // 👇 Benutzer aus /auth/me abrufen
+    const me = await axios.get("http://localhost:4000/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // 👇 Benutzer im localStorage speichern
+    localStorage.setItem("user", JSON.stringify(me.data.user));
+
+    setSuccess("Login erfolgreich!");
+    window.location.href = "/dashboard";
+  } catch (err: any) {
+    console.error("Fehler beim Login:", err);
+    setError(err.response?.data?.message || "Login fehlgeschlagen");
+  }
 };
+
 
 
   return (

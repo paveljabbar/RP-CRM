@@ -9,7 +9,15 @@
     "dev:all": "concurrently \"pnpm dev:api\" \"pnpm dev:frontend\" \"pnpm dev:db\""
   },
   "devDependencies": {
-    "concurrently": "^9.0.0"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "concurrently": "^9.0.0",
+    "prisma": "^6.17.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.17.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
   }
 }
-
