@@ -19,5 +19,40 @@ services:
     ports:
       - "6379:6379"
 
+  api:
+    build:
+      context: ./apps/api
+    container_name: arilla-api
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: "postgresql://app:app@postgres:5432/appdb"
+      CLIENT_URL: "http://localhost:3000"
+      JWT_SECRET: "meinSuperGeheimesToken"
+    ports:
+      - "4000:4000"
+    command: pnpm dlx tsx src/index.ts
+    working_dir: /usr/src/app
+    volumes:
+      - ./apps/api:/usr/src/app
+
+  frontend:
+    build:
+      context: ./apps/frontend
+    container_name: arilla-frontend
+    restart: always
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:4000"
+    ports:
+      - "3000:3000"
+    command: pnpm dev
+    working_dir: /usr/src/app
+    volumes:
+      - ./apps/frontend:/usr/src/app
+      - /usr/src/app/node_modules
+
 volumes:
   pgdata:

@@ -8,55 +8,61 @@ datasource db {
 }
 
 model User {
-  id            Int        @id @default(autoincrement())
-  email         String     @unique
-  passwordHash  String
-  name          String?
-  role          String     @default("USER")   // 👈 Rolle für spätere Rechteprüfung
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  customers     Customer[] // 👈 Verknüpfung: Ein User hat mehrere Kunden
+  id               Int        @id @default(autoincrement())
+  email            String     @unique
+  passwordHash     String
+  name             String?
+  role             String     @default("USER") // 👈 Rolle für spätere Rechteprüfung
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  customers        Customer[] // 👈 Verknüpfung: Ein User hat mehrere Kunden
+  advisedCustomers Customer[] @relation("AdvisorRelation")
 }
 
 model Customer {
-  id                      Int       @id @default(autoincrement())
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Basisdaten
-  category                String?   // Privatperson, Unternehmen
-  advisor                 String?   // Hauptberater (später relation zu Advisor)
-  language                String?   // DE, FR, IT, EN
-  noContact               Boolean   @default(false)
+  category  String? // Privatperson, Unternehmen
+  advisorId Int? // optionaler Berater
+  advisor   User?   @relation("AdvisorRelation", fields: [advisorId], references: [id])
+  language  String? // DE, FR, IT, EN
+  noContact Boolean @default(false)
 
   // Persönliche Informationen
-  gender                  String?
-  salutation              String?   // Herr, Frau
-  firstName               String?
-  lastName                String?
-  maritalStatus           String?   // ledig, verheiratet, etc.
-  birthDate               String?
-  ahvNumber               String?   @unique
-  nationality             String?
-  foreignPermit           String?
-  livingSituation         String?
-  occupation              String?
+  gender          String?
+  salutation      String? // Herr, Frau
+  firstName       String?
+  lastName        String?
+  maritalStatus   String? // ledig, verheiratet, etc.
+  birthDate       String?
+  ahvNumber       String? @unique
+  nationality     String?
+  foreignPermit   String?
+  livingSituation String?
+  occupation      String?
+  // Adresse
+  street          String?
+  zip             Int?
+  city            String?
 
   // Kontakt
-  mobileCode              String?
-  mobile                  String?
-  workPhoneCode           String?
-  workPhone               String?
-  privateEmailPart1       String?
-  privateEmailPart2       String?
-  workEmailPart1          String?
-  workEmailPart2          String?
+  mobileCode        String?
+  mobile            String?
+  workPhoneCode     String?
+  workPhone         String?
+  privateEmailPart1 String?
+  privateEmailPart2 String?
+  workEmailPart1    String?
+  workEmailPart2    String?
 
-  recommendation           String?
-  relationToRecommender    String?
+  recommendation        String?
+  relationToRecommender String?
 
   // Relation zu User (wer hat den Kunden angelegt)
-  userId                  Int
-  user                    User       @relation(fields: [userId], references: [id])
+  userId  Int
+  user    User    @relation(fields: [userId], references: [id])
+  deleted Boolean @default(false)
 }
-

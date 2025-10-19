@@ -4,16 +4,33 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 
+
+
 interface AddCustomerProps {
   onClose: () => void;
   onCustomerAdded: () => void;
 }
 
 export default function AddCustomer({ onClose, onCustomerAdded }: AddCustomerProps) {
+const [advisors, setAdvisors] = useState<any[]>([]);
+useEffect(() => {
+  const fetchAdvisors = async () => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await axios.get("http://localhost:4000/auth/users", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setAdvisors(res.data);
+    } catch (err) {
+      console.error("Fehler beim Laden der Berater:", err);
+    }
+  };
+  fetchAdvisors();
+}, []);
   // Formular-Daten
   const [form, setForm] = useState({
     category: "",
-    advisor: "",
+    advisorId: null,
     language: "",
     noContact: false,
 
@@ -26,6 +43,9 @@ export default function AddCustomer({ onClose, onCustomerAdded }: AddCustomerPro
     ahvNumber: "756.",
     nationality: "",
     foreignPermit: "",
+    street: "",
+    zip: "" as number | "",
+    city: "",
     livingSituation: "",
     occupation: "",
 
@@ -80,11 +100,20 @@ export default function AddCustomer({ onClose, onCustomerAdded }: AddCustomerPro
     e.preventDefault();
     setLoading(true);
 
+    // Pflichtfelder prüfen
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      alert("Vorname und Nachname sind Pflichtfelder.");
+      setLoading(false);
+      return;
+    }
+
+    // AHV prüfen
     if (!validateAhv(form.ahvNumber)) {
       alert("Ungültige AHV-Nummer. Bitte im Format 756.xxxx.xxxx.xx eingeben.");
       setLoading(false);
       return;
     }
+
 
 try {
   const token = localStorage.getItem("token");
@@ -98,6 +127,7 @@ try {
   onCustomerAdded();
   onClose();
 } catch (error: any) {
+  console.log("Raw error object:", error);
   console.error("Fehler beim Hinzufügen:", error.response?.data || error);
   alert(error.response?.data?.message || "Fehler beim Hinzufügen des Kunden");
 } finally {
@@ -142,15 +172,43 @@ try {
               {/* Hauptberater */}
               <div>
                 <label className="block text-sm font-medium mb-1">Hauptberater</label>
+
+                {/* 🔍 Suchfeld */}
+                <input
+                  type="text"
+                  placeholder="Berater suchen..."
+                  className="border p-2 w-full rounded mb-2"
+                  onChange={(e) => {
+                    const query = e.target.value.toLowerCase();
+                    setAdvisors((prev) =>
+                      prev.map((a) => ({
+                        ...a,
+                        hidden: !a.name.toLowerCase().includes(query),
+                      }))
+                    );
+                  }}
+                />
+
+                {/* 📋 Dropdown */}
                 <select
                   className="border p-2 w-full rounded"
-                  value={form.advisor}
-                  onChange={(e) => updateField("advisor", e.target.value)}
+                  value={form.advisorId || ""}
+                  onChange={(e) =>
+                    updateField("advisorId", e.target.value ? Number(e.target.value) : null)
+                  }
                 >
                   <option value="">Bitte wählen</option>
-                  <option value="Platzhalter">Platzhalter</option>
+                  {advisors
+                    .filter((a) => !a.hidden)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.email})
+                      </option>
+                    ))}
                 </select>
               </div>
+
+
 
               {/* Korrespondenzsprache */}
               <div>
@@ -229,7 +287,10 @@ try {
 
               {/* Vorname */}
               <div>
-                <label className="block text-sm font-medium mb-1">Vorname</label>
+                <label className="block text-sm font-medium mb-1">
+                  Vorname <span className="text-red-500">*</span>
+                </label>
+
                 <input
                   type="text"
                   className="border p-2 w-full rounded"
@@ -240,7 +301,10 @@ try {
 
               {/* Nachname */}
               <div>
-                <label className="block text-sm font-medium mb-1">Nachname</label>
+                <label className="block text-sm font-medium mb-1">
+                  Nachname <span className="text-red-500">*</span>
+                </label>
+
                 <input
                   type="text"
                   className="border p-2 w-full rounded"
@@ -282,7 +346,10 @@ try {
 
               {/* AHV */}
               <div>
-                <label className="block text-sm font-medium mb-1">AHV-Nummer</label>
+                <label className="block text-sm font-medium mb-1">
+                  AHV-Nummer <span className="text-red-500">*</span>
+                </label>
+
                 <input
                   type="text"
                   className="border p-2 w-full rounded"
@@ -328,6 +395,45 @@ try {
                 </div>
               )}
 
+              {/* Adresse */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Adresse</label>
+                <input
+                  type="text"
+                  placeholder="z. B. Bahnhofstrasse 12"
+                  className="border p-2 w-full rounded"
+                  value={form.street}
+                  onChange={(e) => updateField("street", e.target.value)}
+                />
+              </div>
+
+              {/* PLZ */}
+              <div>
+                <label className="block text-sm font-medium mb-1">PLZ</label>
+                <input
+                  type="text"
+                  placeholder="z. B. 8001"
+                  className="border p-2 w-full rounded"
+                  value={form.zip}
+                  onChange={(e) => updateField("zip", e.target.value ? Number(e.target.value) : "")}
+                />
+              </div>
+
+              {/* Ort */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Ort</label>
+                <input
+                  type="text"
+                  placeholder="z. B. Zürich"
+                  className="border p-2 w-full rounded"
+                  value={form.city}
+                  onChange={(e) => updateField("city", e.target.value)}
+                />
+              </div>
+
+
+
+
               {/* Wohnsituation */}
               <div>
                 <label className="block text-sm font-medium mb-1">Wohnsituation</label>
@@ -352,7 +458,7 @@ try {
                   type="text"
                   className="border p-2 w-full rounded"
                   value={form.occupation}
-                  onChange={(e) => updateField("occupation", e.target.value)}
+                  onChange={(e) => updateField("occupation", e.target.value)}           
                 />
               </div>
             </div>

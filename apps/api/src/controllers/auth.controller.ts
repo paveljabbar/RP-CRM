@@ -78,6 +78,22 @@ export const loginUser = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * 🟢 Alle Benutzer abrufen (z. B. für Berater-Auswahl)
+ */
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    });
+
+    res.json(users);
+  } catch (error) {
+    console.error("Fehler beim Laden der Benutzerliste:", error);
+    res.status(500).json({ message: "Fehler beim Laden der Benutzerliste" });
+  }
+};
 
 
 
