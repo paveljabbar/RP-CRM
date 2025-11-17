@@ -17,7 +17,7 @@ export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction)
     const decoded = jwt.verify(token, config.jwtSecret) as { id: number };
     req.user = { id: decoded.id };
     next();
-  } catch (err) {
+  } catch {
     return res.status(403).json({ message: ERROR_MESSAGES.INVALID_TOKEN });
   }
 };

@@ -1,7 +1,10 @@
+import { env } from "./env";
+
 export const config = {
-  port: process.env.PORT || 4000,
-  jwtSecret: process.env.JWT_SECRET || "secret-key",
+  port: env.PORT,
+  jwtSecret: env.JWT_SECRET,
   jwtExpiresIn: "1h",
-  clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
+  clientUrl: env.CLIENT_URL,
   bcryptSaltRounds: 10,
+  nodeEnv: env.NODE_ENV,
 } as const;

@@ -34,8 +34,8 @@ router.get("/:id", verifyToken, async (req: AuthRequest, res) => {
     const { id } = req.params;
     const customer = await customerService.getCustomerById(Number(id));
     res.json(customer);
-  } catch (err: any) {
-    if (err.message === ERROR_MESSAGES.CUSTOMER_NOT_FOUND) {
+  } catch (err) {
+    if (err instanceof Error && err.message === ERROR_MESSAGES.CUSTOMER_NOT_FOUND) {
       return res.status(404).json({ message: err.message });
     }
     handleError(res, err, "Fehler beim Laden des Kunden");
@@ -65,8 +65,8 @@ router.post("/", verifyToken, async (req: AuthRequest, res) => {
     });
 
     res.status(201).json(customer);
-  } catch (err: any) {
-    if (err.message === ERROR_MESSAGES.AHV_EXISTS) {
+  } catch (err) {
+    if (err instanceof Error && err.message === ERROR_MESSAGES.AHV_EXISTS) {
       return res.status(400).json({ message: err.message });
     }
     handleError(res, err, "Fehler beim Erstellen des Kunden");
@@ -92,12 +92,14 @@ router.put("/:id", verifyToken, async (req: AuthRequest, res) => {
     });
 
     res.json(updated);
-  } catch (err: any) {
-    if (err.message === ERROR_MESSAGES.CUSTOMER_NOT_FOUND) {
-      return res.status(404).json({ message: err.message });
-    }
-    if (err.message === ERROR_MESSAGES.ADVISOR_NOT_FOUND) {
-      return res.status(400).json({ message: err.message });
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.message === ERROR_MESSAGES.CUSTOMER_NOT_FOUND) {
+        return res.status(404).json({ message: err.message });
+      }
+      if (err.message === ERROR_MESSAGES.ADVISOR_NOT_FOUND) {
+        return res.status(400).json({ message: err.message });
+      }
     }
     handleError(res, err, "Fehler beim Aktualisieren des Kunden");
   }

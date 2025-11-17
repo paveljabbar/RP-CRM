@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma";
 import { ERROR_MESSAGES } from "../constants/messages";
-import { Customer, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export interface CustomerCreateData {
   category?: string;
@@ -164,7 +164,7 @@ export class CustomerService {
     // Prepare update data
     const { advisorId, userId, ...restData } = data;
     
-    const updateData: any = { ...restData };
+    const updateData: Prisma.CustomerUpdateInput = { ...restData };
     
     if (advisorId !== undefined) {
       updateData.advisor = advisorId ? { connect: { id: advisorId } } : { disconnect: true };
