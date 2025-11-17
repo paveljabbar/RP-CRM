@@ -1,122 +1,91 @@
-import { prisma } from "../lib/prisma";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
+import { authService } from "../services/auth.service";
+import { handleError } from "../utils/errorHandler";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../constants/messages";
+import { AuthRequest } from "../types";
 
 /**
- * 🟢 Registrierung eines neuen Users
+ * Register a new user
  */
 export const registerUser = async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
 
     if (!email || !password || !name) {
-      return res.status(400).json({ message: "Name, Email und Passwort erforderlich" });
+      return res.status(400).json({ message: ERROR_MESSAGES.MISSING_CREDENTIALS });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return res.status(409).json({ message: "Benutzer existiert bereits" });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    const user = await prisma.user.create({
-      data: { email, passwordHash, name },
-    });
+    const user = await authService.registerUser(email, password, name);
 
     res.status(201).json({
-      message: "User created",
-      user: { id: user.id, email: user.email, name: user.name },
+      message: SUCCESS_MESSAGES.USER_CREATED,
+      user,
     });
   } catch (error) {
-    console.error("Register error:", error);
-    res.status(500).json({ message: "Serverfehler bei der Registrierung" });
+    if (error instanceof Error && error.message === ERROR_MESSAGES.USER_EXISTS) {
+      return res.status(409).json({ message: error.message });
+    }
+    handleError(res, error, "Serverfehler bei der Registrierung");
   }
 };
 
 /**
- * 🟢 Login eines bestehenden Users
+ * Login user
  */
-
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: "Email und Passwort erforderlich" });
+      return res.status(400).json({ message: ERROR_MESSAGES.MISSING_EMAIL_PASSWORD });
     }
 
-    // 🔹 Lade User mit allen Feldern inkl. Name
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (!user) return res.status(401).json({ message: "Ungültige Zugangsdaten" });
-
-    const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) return res.status(401).json({ message: "Ungültige Zugangsdaten" });
-
-    // 🔹 Name sicherstellen (falls z. B. null)
-    const name = user.name || "";
-
-    // 🔹 Token mit Name erstellen
-    const token = jwt.sign(
-      { id: user.id, email: user.email, name },
-      process.env.JWT_SECRET || "secret-key",
-      { expiresIn: "1h" }
-    );
+    const result = await authService.loginUser(email, password);
 
     res.json({
-      message: "Login successful",
-      token,
-      user: { id: user.id, email: user.email, name },
+      message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+      token: result.token,
+      user: result.user,
     });
   } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Serverfehler beim Login" });
+    if (error instanceof Error && error.message === ERROR_MESSAGES.INVALID_CREDENTIALS) {
+      return res.status(401).json({ message: error.message });
+    }
+    handleError(res, error, "Serverfehler beim Login");
   }
 };
 
 /**
- * 🟢 Alle Benutzer abrufen (z. B. für Berater-Auswahl)
+ * Get all users (for advisor selection)
  */
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const users = await prisma.user.findMany({
-      select: { id: true, name: true, email: true },
-      orderBy: { name: "asc" },
-    });
-
+    const users = await authService.getAllUsers();
     res.json(users);
   } catch (error) {
-    console.error("Fehler beim Laden der Benutzerliste:", error);
-    res.status(500).json({ message: "Fehler beim Laden der Benutzerliste" });
+    handleError(res, error, "Fehler beim Laden der Benutzerliste");
   }
 };
 
-
-
 /**
- * 🟢 Authentifizierten User abrufen (z. B. fürs Dashboard)
+ * Get authenticated user info
  */
-export const getMe = async (req: Request, res: Response) => {
+export const getMe = async (req: AuthRequest, res: Response) => {
   try {
-    // @ts-ignore
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Nicht autorisiert" });
+    if (!userId) {
+      return res.status(401).json({ message: ERROR_MESSAGES.UNAUTHORIZED });
+    }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, name: true }, 
-    });
+    const user = await authService.getUserById(userId);
 
-    if (!user) return res.status(404).json({ message: "Benutzer nicht gefunden" });
+    if (!user) {
+      return res.status(404).json({ message: ERROR_MESSAGES.USER_NOT_FOUND });
+    }
 
     res.json({ user });
   } catch (error) {
-    console.error("GetMe error:", error);
-    res.status(500).json({ message: "Fehler beim Laden des Benutzers" });
+    handleError(res, error, "Fehler beim Laden des Benutzers");
   }
 };
 

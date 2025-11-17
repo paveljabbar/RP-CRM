@@ -1,205 +1,121 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
-import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
+import { verifyToken } from "../middleware/auth.middleware";
+import { AuthRequest } from "../types";
+import { customerService } from "../services/customer.service";
+import { handleError } from "../utils/errorHandler";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../constants/messages";
 
 const router = express.Router();
-const prisma = new PrismaClient({
-  log: ['error'],
-});
 
-
-// 📋 Alle aktiven Kunden abrufen (GET /customers)
+/**
+ * Get all active customers
+ */
 router.get("/", verifyToken, async (req: AuthRequest, res) => {
-  try { 
+  try {
+    const showAdvisorOnly = req.query.advisor === "true";
+    
+    const filter = {
+      deleted: false,
+      ...(showAdvisorOnly && { advisorId: req.user!.id }),
+    };
 
-    let filter: any = { deleted: false };
-
-    // Wenn ?advisor=true gesetzt → zeige Kunden, bei denen der eingeloggte User Berater ist
-    if (req.query.advisor === "true") {
-      filter.advisorId = Number(req.user!.id);
-    }
-
-
-    const customers = await prisma.customer.findMany({
-      where: filter,
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        advisor: { select: { id: true, name: true, email: true } },
-      },
-    });
-
+    const customers = await customerService.getCustomers(filter);
     res.json(customers);
   } catch (err) {
-    console.error("Fehler beim Abrufen der Kunden:", err);
-    res.status(500).json({ message: "Fehler beim Abrufen der Kunden" });
+    handleError(res, err, "Fehler beim Abrufen der Kunden");
   }
 });
 
-
-
-// 📄 Einzelnen Kunden abrufen (GET /customers/:id)
+/**
+ * Get single customer by ID
+ */
 router.get("/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-
-    const customer = await prisma.customer.findUnique({
-      where: { id: Number(id) },
-      include: {
-        user: { select: { id: true, name: true, email: true } },     // Ersteller
-        advisor: { select: { id: true, name: true, email: true } },  // Hauptberater
-      },
-    });
-
-    if (!customer) {
-      return res.status(404).json({ message: "Kunde nicht gefunden" });
-    }
-
+    const customer = await customerService.getCustomerById(Number(id));
     res.json(customer);
-  } catch (err: any) {
-    console.error("Fehler beim Laden des Kunden:", err);
-    res.status(500).json({ message: err.message || "Fehler beim Laden des Kunden" });
+  } catch (err) {
+    if (err instanceof Error && err.message === ERROR_MESSAGES.CUSTOMER_NOT_FOUND) {
+      return res.status(404).json({ message: err.message });
+    }
+    handleError(res, err, "Fehler beim Laden des Kunden");
   }
 });
 
-
-
-
-
-// ➕ Neuen Kunden erstellen (POST /customers)
+/**
+ * Create new customer
+ */
 router.post("/", verifyToken, async (req: AuthRequest, res) => {
   try {
     const data = req.body;
-
-    // AHV prüfen
-    if (data.ahvNumber) {
-      const existing = await prisma.customer.findUnique({
-        where: { ahvNumber: data.ahvNumber },
-      });
-      if (existing) {
-        return res.status(400).json({ message: "AHV-Nummer bereits vorhanden" });
-      }
+    
+    // Convert zip to number if provided
+    if (data.zip) {
+      data.zip = Number(data.zip);
     }
-
-    // 🔹 Advisor separat behandeln
-    const advisorConnect =
-      data.advisorId && Number(data.advisorId) > 0
-        ? { connect: { id: Number(data.advisorId) } }
-        : undefined;
-
-    // Kunde wird automatisch mit eingeloggtem Benutzer verknüpft
-    const customer = await prisma.customer.create({
-      data: {
-        category: data.category,
-        language: data.language,
-        noContact: data.noContact,
-        gender: data.gender,
-        salutation: data.salutation,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        maritalStatus: data.maritalStatus,
-        birthDate: data.birthDate,
-        ahvNumber: data.ahvNumber,
-        nationality: data.nationality,
-        foreignPermit: data.foreignPermit,
-        street: data.street,
-        zip: data.zip ? Number(data.zip) : null,
-        city: data.city,
-        livingSituation: data.livingSituation,
-        occupation: data.occupation,
-        mobileCode: data.mobileCode,
-        mobile: data.mobile,
-        workPhoneCode: data.workPhoneCode,
-        workPhone: data.workPhone,
-        privateEmailPart1: data.privateEmailPart1,
-        privateEmailPart2: data.privateEmailPart2,
-        workEmailPart1: data.workEmailPart1,
-        workEmailPart2: data.workEmailPart2,
-        recommendation: data.recommendation,
-        relationToRecommender: data.relationToRecommender,
-        advisor: advisorConnect,
-        user: { connect: { id: req.user!.id } },
-      },
+    
+    // Convert advisorId to number if provided
+    if (data.advisorId) {
+      data.advisorId = Number(data.advisorId);
+    }
+    
+    const customer = await customerService.createCustomer({
+      ...data,
+      userId: req.user!.id,
     });
 
     res.status(201).json(customer);
   } catch (err) {
-    console.error("Fehler beim Erstellen des Kunden:", err);
-    res.status(500).json({ message: "Fehler beim Erstellen des Kunden" });
+    if (err instanceof Error && err.message === ERROR_MESSAGES.AHV_EXISTS) {
+      return res.status(400).json({ message: err.message });
+    }
+    handleError(res, err, "Fehler beim Erstellen des Kunden");
   }
 });
 
-
-// ✏️ Bestehenden Kunden bearbeiten (PUT /customers/:id)
+/**
+ * Update existing customer
+ */
 router.put("/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const data = req.body;
-
-    // 🔹 Prüfen, ob Kunde existiert
-    const existing = await prisma.customer.findUnique({ where: { id: Number(id) } });
-    if (!existing) {
-      return res.status(404).json({ message: "Kunde nicht gefunden" });
-    }
-
-    // 🔹 Wenn advisorId im Body ist, prüfen ob dieser User existiert
+    
+    // Convert advisorId to number if provided
     if (data.advisorId) {
-      const advisorExists = await prisma.user.findUnique({
-        where: { id: Number(data.advisorId) },
-      });
-
-      if (!advisorExists) {
-        return res.status(400).json({ message: "Berater nicht gefunden" });
-      }
+      data.advisorId = Number(data.advisorId);
     }
 
-    // 🔹 Kunde aktualisieren (inkl. advisorId)
-    const updated = await prisma.customer.update({
-      where: { id: Number(id) },
-      data: {
-        // advisorId aus req.body entfernen, Rest übernehmen
-        ...Object.fromEntries(Object.entries(data).filter(([key]) => key !== "advisorId")),
-        advisor: data.advisorId
-          ? { connect: { id: Number(data.advisorId) } }
-          : undefined,
-        user: { connect: { id: req.user!.id } },
-      },
-
-      include: {
-        user: { select: { id: true, name: true, email: true } }, // Ersteller
-        advisor: { select: { id: true, name: true, email: true } }, // Hauptberater
-      },
+    const updated = await customerService.updateCustomer(Number(id), {
+      ...data,
+      userId: req.user!.id,
     });
 
     res.json(updated);
   } catch (err) {
-    console.error("Fehler beim Aktualisieren des Kunden:", err);
-    res.status(500).json({ message: "Fehler beim Aktualisieren des Kunden" });
+    if (err instanceof Error) {
+      if (err.message === ERROR_MESSAGES.CUSTOMER_NOT_FOUND) {
+        return res.status(404).json({ message: err.message });
+      }
+      if (err.message === ERROR_MESSAGES.ADVISOR_NOT_FOUND) {
+        return res.status(400).json({ message: err.message });
+      }
+    }
+    handleError(res, err, "Fehler beim Aktualisieren des Kunden");
   }
 });
 
-
-
-
-
-
-// 🗑️ Kunden "Soft Delete" (DELETE /customers/:id)
+/**
+ * Soft delete customer
+ */
 router.delete("/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-
-    // Statt löschen: auf deleted = true setzen
-    await prisma.customer.update({
-      where: { id: Number(id) },
-      data: { deleted: true },
-    });
-
-    res.json({ message: "Kunde wurde als gelöscht markiert" });
+    await customerService.deleteCustomer(Number(id));
+    res.json({ message: SUCCESS_MESSAGES.CUSTOMER_DELETED });
   } catch (err) {
-    console.error("Fehler beim Soft Delete:", err);
-    res.status(500).json({ message: "Fehler beim Soft Delete des Kunden" });
+    handleError(res, err, "Fehler beim Soft Delete des Kunden");
   }
 });
-
 
 export default router;

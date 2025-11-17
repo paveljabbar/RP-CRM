@@ -2,9 +2,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
-
-
+import { customerService } from "@/services/customer.service";
+import { authService } from "@/services/auth.service";
+import { User } from "@/types";
 
 interface AddCustomerProps {
   onClose: () => void;
@@ -12,25 +12,24 @@ interface AddCustomerProps {
 }
 
 export default function AddCustomer({ onClose, onCustomerAdded }: AddCustomerProps) {
-const [advisors, setAdvisors] = useState<any[]>([]);
-useEffect(() => {
-  const fetchAdvisors = async () => {
-    const token = localStorage.getItem("token");
-    try {
-      const res = await axios.get("http://localhost:4000/auth/users", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setAdvisors(res.data);
-    } catch (err) {
-      console.error("Fehler beim Laden der Berater:", err);
-    }
-  };
-  fetchAdvisors();
-}, []);
-  // Formular-Daten
+  const [advisors, setAdvisors] = useState<(User & { hidden?: boolean })[]>([]);
+  
+  useEffect(() => {
+    const fetchAdvisors = async () => {
+      try {
+        const users = await authService.getAllUsers();
+        setAdvisors(users.map(u => ({ ...u, hidden: false })));
+      } catch (err) {
+        console.error("Error loading advisors:", err);
+      }
+    };
+    fetchAdvisors();
+  }, []);
+
+  // Form data
   const [form, setForm] = useState({
     category: "",
-    advisorId: null,
+    advisorId: null as number | null,
     language: "",
     noContact: false,
 
@@ -64,7 +63,7 @@ useEffect(() => {
   const [showForeignPermit, setShowForeignPermit] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 🔹 Nationalitäten (Schweiz oben + rest alphabetisch)
+  // Nationalities (Switzerland at top + rest alphabetically)
   const nationalities = [
     "Schweiz",
     "Deutschland",
@@ -78,7 +77,7 @@ useEffect(() => {
     "USA",
   ];
 
-  // 🔹 Ausländerausweise
+  // Foreign permits
   const foreignPermits = [
     "Ausländerausweis C",
     "Ausländerausweis B",
@@ -90,7 +89,7 @@ useEffect(() => {
     "Ausweis S",
   ];
 
-  // 🔹 AHV-Validierung (Dummy)
+  // AHV validation
   const validateAhv = (ahv: string) => {
     const regex = /^756\.\d{4}\.\d{4}\.\d{2}$/;
     return regex.test(ahv);
@@ -100,47 +99,45 @@ useEffect(() => {
     e.preventDefault();
     setLoading(true);
 
-    // Pflichtfelder prüfen
+    // Validate required fields
     if (!form.firstName.trim() || !form.lastName.trim()) {
       alert("Vorname und Nachname sind Pflichtfelder.");
       setLoading(false);
       return;
     }
 
-    // AHV prüfen
+    // Validate AHV
     if (!validateAhv(form.ahvNumber)) {
       alert("Ungültige AHV-Nummer. Bitte im Format 756.xxxx.xxxx.xx eingeben.");
       setLoading(false);
       return;
     }
 
+    try {
+      await customerService.createCustomer({
+        ...form,
+        advisorId: form.advisorId || undefined,
+        zip: form.zip || undefined,
+      });
+      onCustomerAdded();
+      onClose();
+    } catch (error) {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined;
+      console.error("Error adding customer:", error);
+      alert(errorMessage || "Fehler beim Hinzufügen des Kunden");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-try {
-  const token = localStorage.getItem("token");
-
-  await axios.post("http://localhost:4000/customers", form, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  onCustomerAdded();
-  onClose();
-} catch (error: any) {
-  console.log("Raw error object:", error);
-  console.error("Fehler beim Hinzufügen:", error.response?.data || error);
-  alert(error.response?.data?.message || "Fehler beim Hinzufügen des Kunden");
-} finally {
-  setLoading(false);
-}
-};
-
-  // 🔹 Zeige Ausländerausweis nur, wenn Nationalität ≠ Schweiz
+  // Show foreign permit only when nationality != Switzerland
   useEffect(() => {
     setShowForeignPermit(form.nationality !== "" && form.nationality !== "Schweiz");
   }, [form.nationality]);
 
-  // 🔹 Hilfsfunktion zum Aktualisieren von Feldern
+  // Helper function to update fields
   const updateField = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -183,7 +180,7 @@ try {
                     setAdvisors((prev) =>
                       prev.map((a) => ({
                         ...a,
-                        hidden: !a.name.toLowerCase().includes(query),
+                        hidden: !a.name?.toLowerCase().includes(query),
                       }))
                     );
                   }}
