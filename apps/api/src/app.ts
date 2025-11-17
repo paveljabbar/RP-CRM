@@ -3,23 +3,24 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes";
 import customersRouter from "./routes/customers.routes";
+import { config } from "./config";
 
-// 🔧 .env laden
+// Load environment variables
 dotenv.config();
 
-// 🚀 Express-App erstellen
+// Create Express app
 const app = express();
 
-// 🔧 Middleware
+// Middleware
 app.use(express.json());
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: config.clientUrl,
     credentials: true,
   })
 );
 
-// 🟢 Routen
+// Routes
 app.use("/auth", authRoutes);
 app.use("/customers", customersRouter);
 

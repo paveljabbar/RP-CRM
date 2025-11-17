@@ -1,21 +1,18 @@
 import { Router } from "express";
-import { registerUser, loginUser, getMe } from "../controllers/auth.controller";
+import { registerUser, loginUser, getMe, getAllUsers } from "../controllers/auth.controller";
 import { verifyToken } from "../middleware/auth.middleware";
-import { getAllUsers } from "../controllers/auth.controller";
 
 const router = Router();
 
-// 🟢 Registrierung & Login
+// Registration & Login
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 
-// 🟢 Geschützte Route für eingeloggte Benutzer
+// Protected routes for authenticated users
 router.get("/me", verifyToken, getMe);
 
-// 🟢 Alle Benutzer abrufen (Beraterliste)
+// Get all users (for advisor list)
 router.get("/users", verifyToken, getAllUsers);
-
-
 
 export default router;
 
